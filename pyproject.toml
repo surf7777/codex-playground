@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "financial-disclosure-extractor"
+version = "0.1.0"
+description = "決算開示抽出専用エンジン — Extracts structured data from Japanese earnings disclosures"
+requires-python = ">=3.10"
+
+[project.scripts]
+fde = "financial_disclosure_extractor.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
