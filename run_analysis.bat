@@ -1,23 +1,23 @@
 @echo off
+chcp 65001 >nul
 REM ============================================================
-REM TDnet 適時開示 自動分析 - 実行バッチファイル
-REM Windowsタスクスケジューラから呼び出される
+REM TDnet Auto Analysis - Run Script
 REM ============================================================
 
 cd /d "%~dp0"
 
-REM Python仮想環境を使用する場合
+REM Activate Python virtual environment
 if exist "venv\Scripts\activate.bat" (
     call venv\Scripts\activate.bat
 )
 
-REM 分析実行
+REM Run analysis
 python tdnet_analyzer.py --days 1
 
-REM 終了コードを保持
+REM Keep exit code
 set EXITCODE=%ERRORLEVEL%
 
-REM 仮想環境を無効化
+REM Deactivate virtual environment
 if exist "venv\Scripts\deactivate.bat" (
     call deactivate
 )
