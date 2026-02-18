@@ -467,14 +467,31 @@ class ExcelReporter:
 # メイン処理
 # ---------------------------------------------------------------------------
 def get_default_output_dir() -> Path:
-    """デフォルトの出力先ディレクトリを返す。"""
-    # Windows: Documents\TDnet分析結果\
-    # それ以外: ~/Documents/TDnet分析結果/
+    """デフォルトの出力先ディレクトリを返す。
+
+    Windows の OneDrive フォルダリダイレクト環境にも対応する。
+    """
+    home = Path.home()
+
     if sys.platform == "win32":
-        docs = Path.home() / "Documents"
+        # OneDrive でリダイレクトされている場合の候補パス
+        candidates = [
+            home / "OneDrive" / "ドキュメント",
+            home / "OneDrive" / "Documents",
+            home / "OneDrive - Personal" / "Documents",
+            home / "OneDrive - Personal" / "ドキュメント",
+            home / "Documents",
+        ]
+        for cand in candidates:
+            if cand.exists():
+                logger.info("ドキュメントフォルダ検出: %s", cand)
+                return cand / "TDnet分析結果"
+        # どれも見つからない場合はスクリプト配置場所に出力
+        logger.warning("Documents フォルダが見つかりません。スクリプトと同じ場所に出力します。")
+        return Path(__file__).parent / "TDnet分析結果"
     else:
-        docs = Path.home() / "Documents"
-    return docs / "TDnet分析結果"
+        docs = home / "Documents"
+        return docs / "TDnet分析結果"
 
 
 def collect_disclosures(fetcher: TDnetFetcher, target_dates: list[str]) -> list[dict]:
@@ -586,4 +603,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger.error("予期しないエラーが発生しました: %s", e, exc_info=True)
+        print(f"\n*** エラー: {e} ***\n", file=sys.stderr)
+        sys.exit(1)
