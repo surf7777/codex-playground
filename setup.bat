@@ -1,35 +1,34 @@
 @echo off
-chcp 65001 >nul
 REM ============================================================
-REM TDnet Auto Analysis - åˆå›žã‚»ãƒƒãƒˆã‚¢ãƒƒãƒ—
+REM TDnet Auto Analysis - ‰‰ñƒZƒbƒgƒAƒbƒv
 REM ============================================================
 
 cd /d "%~dp0"
 
 echo.
 echo ========================================
-echo  TDnet é©æ™‚é–‹ç¤º è‡ªå‹•åˆ†æžã‚·ã‚¹ãƒ†ãƒ 
-echo  åˆå›žã‚»ãƒƒãƒˆã‚¢ãƒƒãƒ—ã‚’é–‹å§‹ã—ã¾ã™
+echo  TDnet “KŽžŠJŽ¦ Ž©“®•ªÍƒVƒXƒeƒ€
+echo  ‰‰ñƒZƒbƒgƒAƒbƒv‚ðŠJŽn‚µ‚Ü‚·
 echo ========================================
 echo.
 
 REM Step 1: Check Python
-echo [1/3] Python ã‚’ç¢ºèªä¸­...
+echo [1/3] Python ‚ðŠm”F’†...
 python --version >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo â˜… Python ãŒã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã•ã‚Œã¦ã„ã¾ã›ã‚“ï¼
+    echo * Python ‚ªƒCƒ“ƒXƒg[ƒ‹‚³‚ê‚Ä‚¢‚Ü‚¹‚ñI
     echo.
-    echo   ä»¥ä¸‹ã®æ‰‹é †ã§ Python ã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã—ã¦ãã ã•ã„:
-    echo   1. https://www.python.org/downloads/ ã‚’é–‹ã
-    echo   2. ã€ŒDownload Pythonã€ãƒœã‚¿ãƒ³ã‚’ã‚¯ãƒªãƒƒã‚¯
-    echo   3. ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ©ãƒ¼ã‚’å®Ÿè¡Œ
-    echo   4. â˜…é‡è¦â˜…ã€ŒAdd Python to PATHã€ã«ãƒã‚§ãƒƒã‚¯ã‚’å…¥ã‚Œã‚‹
-    echo   5. ã€ŒInstall Nowã€ã‚’ã‚¯ãƒªãƒƒã‚¯
-    echo   6. ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«å®Œäº†å¾Œã€ã‚‚ã†ä¸€åº¦ã“ã® setup ã‚’å®Ÿè¡Œ
+    echo   ˆÈ‰º‚ÌŽè‡‚Å Python ‚ðƒCƒ“ƒXƒg[ƒ‹‚µ‚Ä‚­‚¾‚³‚¢:
+    echo   1. https://www.python.org/downloads/ ‚ðŠJ‚­
+    echo   2. [Download Python]ƒ{ƒ^ƒ“‚ðƒNƒŠƒbƒN
+    echo   3. ƒCƒ“ƒXƒg[ƒ‰[‚ðŽÀs
+    echo   4. **d—v** [Add Python to PATH]‚Éƒ`ƒFƒbƒN‚ð“ü‚ê‚é
+    echo   5. [Install Now]‚ðƒNƒŠƒbƒN
+    echo   6. ƒCƒ“ƒXƒg[ƒ‹Š®—¹ŒãA‚à‚¤ˆê“x‚±‚Ì setup ‚ðŽÀs
     echo.
-    echo   ä»Šã™ããƒ€ã‚¦ãƒ³ãƒ­ãƒ¼ãƒ‰ãƒšãƒ¼ã‚¸ã‚’é–‹ãã¾ã™ã‹ï¼Ÿ
-    choice /c YN /m "  (Y=ã¯ã„ / N=ã„ã„ãˆ)"
+    echo   ¡‚·‚®ƒ_ƒEƒ“ƒ[ƒhƒy[ƒW‚ðŠJ‚«‚Ü‚·‚©H
+    choice /c YN /m "  (Y=‚Í‚¢ / N=‚¢‚¢‚¦)"
     if %ERRORLEVEL% EQU 1 (
         start https://www.python.org/downloads/
     )
@@ -43,39 +42,39 @@ echo   OK: %PYVER%
 
 REM Step 2: Create virtual environment
 echo.
-echo [2/3] ä»®æƒ³ç’°å¢ƒã‚’ä½œæˆä¸­...
+echo [2/3] ‰¼‘zŠÂ‹«‚ðì¬’†...
 if exist "venv\Scripts\python.exe" (
-    echo   æ—¢ã«å­˜åœ¨ã—ã¾ã™ï¼ˆã‚¹ã‚­ãƒƒãƒ—ï¼‰
+    echo   Šù‚É‘¶Ý‚µ‚Ü‚·iƒXƒLƒbƒvj
 ) else (
     python -m venv venv
     if %ERRORLEVEL% NEQ 0 (
-        echo   ä»®æƒ³ç’°å¢ƒã®ä½œæˆã«å¤±æ•—ã—ã¾ã—ãŸ
+        echo   ‰¼‘zŠÂ‹«‚Ìì¬‚ÉŽ¸”s‚µ‚Ü‚µ‚½
         pause
         exit /b 1
     )
-    echo   OK: ä»®æƒ³ç’°å¢ƒã‚’ä½œæˆã—ã¾ã—ãŸ
+    echo   OK: ‰¼‘zŠÂ‹«‚ðì¬‚µ‚Ü‚µ‚½
 )
 
 REM Step 3: Install packages
 echo.
-echo [3/3] å¿…è¦ãªãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ä¸­...
+echo [3/3] •K—v‚ÈƒpƒbƒP[ƒW‚ðƒCƒ“ƒXƒg[ƒ‹’†...
 call venv\Scripts\activate.bat
 pip install -r requirements.txt
 if %ERRORLEVEL% NEQ 0 (
-    echo   ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ã®ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã«å¤±æ•—ã—ã¾ã—ãŸ
+    echo   ƒpƒbƒP[ƒW‚ÌƒCƒ“ƒXƒg[ƒ‹‚ÉŽ¸”s‚µ‚Ü‚µ‚½
     pause
     exit /b 1
 )
-echo   OK: ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã—ã¾ã—ãŸ
+echo   OK: ƒpƒbƒP[ƒW‚ðƒCƒ“ƒXƒg[ƒ‹‚µ‚Ü‚µ‚½
 
 echo.
 echo ========================================
-echo  ã‚»ãƒƒãƒˆã‚¢ãƒƒãƒ—å®Œäº†ï¼
+echo  ƒZƒbƒgƒAƒbƒvŠ®—¹I
 echo.
-echo  æ¬¡ã®ã‚¹ãƒ†ãƒƒãƒ—:
-echo  ã€Œrun_analysisã€ã‚’ãƒ€ãƒ–ãƒ«ã‚¯ãƒªãƒƒã‚¯
-echo  â†’ TDnet ã‹ã‚‰é–‹ç¤ºæƒ…å ±ã‚’å–å¾—ã—ã¦
-echo     Excel ãƒ¬ãƒãƒ¼ãƒˆãŒç”Ÿæˆã•ã‚Œã¾ã™
+echo  ŽŸ‚ÌƒXƒeƒbƒv:
+echo  [run_analysis]‚ðƒ_ƒuƒ‹ƒNƒŠƒbƒN
+echo  -> TDnet ‚©‚çŠJŽ¦î•ñ‚ðŽæ“¾‚µ‚Ä
+echo     Excel ƒŒƒ|[ƒg‚ª¶¬‚³‚ê‚Ü‚·
 echo ========================================
 echo.
 pause

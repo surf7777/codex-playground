@@ -1,5 +1,4 @@
 @echo off
-chcp 65001 >nul
 REM ============================================================
 REM TDnet Auto Analysis - Run Script
 REM ============================================================
@@ -10,8 +9,8 @@ REM Check if setup has been done
 if not exist "venv\Scripts\python.exe" (
     echo.
     echo ========================================
-    echo  åˆå›žã‚»ãƒƒãƒˆã‚¢ãƒƒãƒ—ãŒå¿…è¦ã§ã™ï¼
-    echo  å…ˆã«ã€Œsetupã€ã‚’ãƒ€ãƒ–ãƒ«ã‚¯ãƒªãƒƒã‚¯ã—ã¦ãã ã•ã„
+    echo  ‰‰ñƒZƒbƒgƒAƒbƒv‚ª•K—v‚Å‚·I
+    echo  æ‚É[setup]‚ðƒ_ƒuƒ‹ƒNƒŠƒbƒN‚µ‚Ä‚­‚¾‚³‚¢
     echo ========================================
     echo.
     pause
@@ -23,7 +22,7 @@ call venv\Scripts\activate.bat
 
 REM Run analysis
 echo.
-echo TDnet é©æ™‚é–‹ç¤º è‡ªå‹•åˆ†æžã‚’å®Ÿè¡Œä¸­...
+echo TDnet “KŽžŠJŽ¦ Ž©“®•ªÍ‚ðŽÀs’†...
 echo.
 python tdnet_analyzer.py --days 1
 
@@ -33,13 +32,13 @@ set EXITCODE=%ERRORLEVEL%
 if %EXITCODE% EQU 0 (
     echo.
     echo ========================================
-    echo  å®Œäº†ï¼Excelãƒ•ã‚¡ã‚¤ãƒ«ãŒç”Ÿæˆã•ã‚Œã¾ã—ãŸ
-    echo  ä¿å­˜å…ˆ: ãƒ‰ã‚­ãƒ¥ãƒ¡ãƒ³ãƒˆ\TDnetåˆ†æžçµæžœ\
+    echo  Š®—¹IExcelƒtƒ@ƒCƒ‹‚ª¶¬‚³‚ê‚Ü‚µ‚½
+    echo  •Û‘¶æ: ƒhƒLƒ…ƒƒ“ƒg\TDnet•ªÍŒ‹‰Ê\
     echo ========================================
 ) else (
     echo.
     echo ========================================
-    echo  ã‚¨ãƒ©ãƒ¼ãŒç™ºç”Ÿã—ã¾ã—ãŸï¼ˆã‚³ãƒ¼ãƒ‰: %EXITCODE%ï¼‰
+    echo  ƒGƒ‰[‚ª”­¶‚µ‚Ü‚µ‚½iƒR[ƒh: %EXITCODE%j
     echo ========================================
 )
 
