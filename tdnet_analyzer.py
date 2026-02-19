@@ -32,6 +32,15 @@ LOG_FMT = "%(asctime)s [%(levelname)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=LOG_FMT)
 logger = logging.getLogger(__name__)
 
+
+def setup_file_logging(log_path: Path):
+    """ファイルへのログ出力を追加する。"""
+    fh = logging.FileHandler(str(log_path), encoding="utf-8", mode="w")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter(LOG_FMT))
+    logging.getLogger().addHandler(fh)
+    logger.info("ログファイル: %s", log_path)
+
 # ---------------------------------------------------------------------------
 # 定数
 # ---------------------------------------------------------------------------
@@ -41,7 +50,7 @@ TDNET_SEARCH_URL = TDNET_BASE + "/onsf/TDJFSearch/TDJFSearch"
 
 # フィルタリング対象キーワード群
 FILTER_KEYWORDS = {
-    "high": [  # 重要度: 高
+    "high": [  # 重要度: 高 - 受注関連
         "受注高",
         "受注額",
         "受注残高",
@@ -51,8 +60,15 @@ FILTER_KEYWORDS = {
         "新規受注",
         "大型受注",
         "受注状況",
+        "受注の状況",
+        "受注実績",
+        "受注についてのお知らせ",
+        "受注に関するお知らせ",
+        "受注獲得",
+        "工事受注",
+        "受注見通し",
     ],
-    "medium": [  # 重要度: 中
+    "medium": [  # 重要度: 中 - 売上・業績関連
         "四半期売上",
         "売上高増加",
         "売上増加",
@@ -60,6 +76,17 @@ FILTER_KEYWORDS = {
         "売上高の状況",
         "月次売上",
         "売上速報",
+        "売上高に関する",
+        "売上高の推移",
+        "月次情報",
+        "月次実績",
+        "月次報告",
+        "月次速報",
+        "業績予想の修正",
+        "業績予想の上方修正",
+        "通期業績予想の修正",
+        "連結業績予想の修正",
+        "上方修正",
     ],
 }
 
@@ -174,13 +201,27 @@ class TDnetFetcher:
         soup = BeautifulSoup(html, "html.parser")
         items = []
 
-        # テーブル行を取得 (oddnew / evennew クラスの tr)
+        # テーブル行を取得
         rows = soup.find_all("tr")
+        logger.debug("HTML内のtr要素数: %d", len(rows))
+
+        class_based_count = 0
+        fallback_count = 0
+
         for row in rows:
             item = self._extract_row_data(row, date_str)
             if item:
+                if item.get("_method") == "class":
+                    class_based_count += 1
+                else:
+                    fallback_count += 1
+                item.pop("_method", None)
                 items.append(item)
 
+        logger.info(
+            "  パース結果: %d 件 (CSSクラス: %d, フォールバック: %d)",
+            len(items), class_based_count, fallback_count,
+        )
         return items
 
     def _extract_row_data(self, row, date_str: str) -> dict | None:
@@ -189,7 +230,22 @@ class TDnetFetcher:
         if len(tds) < 4:
             return None
 
-        # 各列のテキストを取得
+        # 方式1: CSSクラス名ベースの抽出 (従来方式)
+        result = self._extract_by_class(tds, date_str)
+        if result and result.get("title"):
+            result["_method"] = "class"
+            return result
+
+        # 方式2: 列位置ベースのフォールバック抽出
+        result = self._extract_by_position(tds, row, date_str)
+        if result and result.get("title"):
+            result["_method"] = "position"
+            return result
+
+        return None
+
+    def _extract_by_class(self, tds, date_str: str) -> dict | None:
+        """CSSクラス名ベースで開示情報を抽出する（従来方式）。"""
         time_text = ""
         code_text = ""
         company_name = ""
@@ -207,16 +263,7 @@ class TDnetFetcher:
                 company_name = td.get_text(strip=True)
             elif "kjTitle" in classes:
                 title_text = td.get_text(strip=True)
-                # PDF リンクを取得
-                link = td.find("a")
-                if link and link.get("href"):
-                    href = link["href"]
-                    if href.startswith("/"):
-                        pdf_url = TDNET_BASE + href
-                    elif href.startswith("http"):
-                        pdf_url = href
-                    else:
-                        pdf_url = urljoin(TDNET_BASE + "/inbs/", href)
+                pdf_url = self._extract_pdf_link(td)
 
         if not title_text:
             return None
@@ -229,6 +276,74 @@ class TDnetFetcher:
             "title": title_text,
             "pdf_url": pdf_url,
         }
+
+    def _extract_by_position(self, tds, row, date_str: str) -> dict | None:
+        """列位置ベースで開示情報を抽出する（フォールバック）。
+
+        TDnetの一般的なテーブル構造:
+          列0: 時刻  列1: コード  列2: 会社名  列3: タイトル  列4: (その他)
+        """
+        texts = [td.get_text(strip=True) for td in tds]
+
+        # 時刻パターン (HH:MM) を持つ列を探す
+        time_col = -1
+        for i, t in enumerate(texts):
+            if re.match(r"^\d{1,2}:\d{2}$", t):
+                time_col = i
+                break
+
+        if time_col < 0:
+            return None
+
+        # 時刻列の後に コード, 会社名, タイトル が続く想定
+        remaining = len(tds) - time_col - 1
+        if remaining < 3:
+            return None
+
+        code_text = texts[time_col + 1]
+        company_name = texts[time_col + 2]
+
+        # タイトル列: リンクを含む列を優先的に探す
+        title_text = ""
+        pdf_url = ""
+        for i in range(time_col + 3, len(tds)):
+            link = tds[i].find("a")
+            if link:
+                title_text = tds[i].get_text(strip=True)
+                pdf_url = self._extract_pdf_link(tds[i])
+                break
+        if not title_text and time_col + 3 < len(tds):
+            title_text = texts[time_col + 3]
+
+        if not title_text:
+            return None
+
+        # コードが数字っぽいか検証（簡易）
+        if not re.match(r"^\d{4}", code_text):
+            return None
+
+        return {
+            "date": date_str,
+            "time": texts[time_col],
+            "code": code_text,
+            "company": company_name,
+            "title": title_text,
+            "pdf_url": pdf_url,
+        }
+
+    @staticmethod
+    def _extract_pdf_link(td) -> str:
+        """td要素からPDFリンクを抽出する。"""
+        link = td.find("a")
+        if link and link.get("href"):
+            href = link["href"]
+            if href.startswith("/"):
+                return TDNET_BASE + href
+            elif href.startswith("http"):
+                return href
+            else:
+                return urljoin(TDNET_BASE + "/inbs/", href)
+        return ""
 
     def _parse_search_html(self, html: str) -> list[dict]:
         """キーワード検索結果の HTML をパースする。"""
@@ -355,16 +470,28 @@ class ExcelReporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def generate(self, items: list[dict], run_date: datetime) -> Path:
-        """Excel レポートを生成し、ファイルパスを返す。"""
+    def generate(self, items: list[dict], run_date: datetime,
+                 all_items: list[dict] | None = None) -> Path:
+        """Excel レポートを生成し、ファイルパスを返す。
+
+        Args:
+            items: フィルタリング済みの開示リスト
+            run_date: 実行日時
+            all_items: 全取得開示リスト (デバッグ用シートに出力)
+        """
         wb = Workbook()
         ws = wb.active
         ws.title = "TDnet分析結果"
 
-        self._write_summary_header(ws, run_date, len(items))
+        self._write_summary_header(ws, run_date, len(items),
+                                   total=len(all_items) if all_items else None)
         self._write_table_header(ws, start_row=4)
         self._write_data_rows(ws, items, start_row=5)
         self._apply_formatting(ws, len(items))
+
+        # 全件一覧シート (デバッグ・確認用)
+        if all_items:
+            self._write_all_items_sheet(wb, all_items)
 
         filename = f"TDnet分析_{run_date.strftime('%Y%m%d_%H%M')}.xlsx"
         filepath = self.output_dir / filename
@@ -372,7 +499,8 @@ class ExcelReporter:
         logger.info("Excel保存: %s", filepath)
         return filepath
 
-    def _write_summary_header(self, ws, run_date: datetime, count: int):
+    def _write_summary_header(self, ws, run_date: datetime, count: int,
+                              total: int | None = None):
         """レポート冒頭のサマリ行を書き込む。"""
         ws.merge_cells("A1:I1")
         cell = ws["A1"]
@@ -380,12 +508,14 @@ class ExcelReporter:
         cell.font = Font(name="Meiryo UI", bold=True, size=14)
         cell.alignment = Alignment(horizontal="center")
 
+        total_info = f"(全{total}件中)" if total is not None else ""
         ws.merge_cells("A2:I2")
         cell2 = ws["A2"]
         cell2.value = (
-            f"抽出件数: {count} 件  |  "
-            f"対象: 受注高・受注額・受注残高・手持ち工事高・四半期売上増加率  |  "
-            f"凡例: 黄色=重要度 高 / 緑=重要度 中"
+            f"抽出件数: {count} 件 {total_info}  |  "
+            f"対象: 受注・売上・業績修正関連  |  "
+            f"凡例: 黄色=重要度 高 / 緑=重要度 中  |  "
+            f"※全件一覧は2枚目シート参照"
         )
         cell2.font = Font(name="Meiryo UI", size=10, italic=True)
         cell2.alignment = Alignment(horizontal="center")
@@ -461,6 +591,67 @@ class ExcelReporter:
         ws.page_setup.orientation = "landscape"
         ws.page_setup.fitToWidth = 1
         ws.page_setup.fitToHeight = 0
+
+    def _write_all_items_sheet(self, wb: Workbook, all_items: list[dict]):
+        """全件一覧シートを書き込む (取得結果の確認・デバッグ用)。"""
+        ws = wb.create_sheet(title="全件一覧")
+
+        # ヘッダ
+        headers = [("No.", 5), ("日付", 12), ("時刻", 8), ("証券コード", 12),
+                   ("会社名", 28), ("開示タイトル", 60), ("PDF URL", 45)]
+        for col_idx, (name, width) in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_idx, value=name)
+            cell.font = FONT_HEADER
+            cell.fill = FILL_HEADER
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = THIN_BORDER
+            ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+        # 重複排除
+        seen = set()
+        unique_items = []
+        for item in all_items:
+            key = (item.get("code", ""), item.get("title", ""), item.get("date", ""))
+            if key not in seen:
+                seen.add(key)
+                unique_items.append(item)
+
+        # データ行
+        for i, item in enumerate(unique_items):
+            row = i + 2
+            raw_date = item.get("date", "")
+            if len(raw_date) == 8:
+                formatted_date = f"{raw_date[:4]}/{raw_date[4:6]}/{raw_date[6:8]}"
+            else:
+                formatted_date = raw_date
+
+            values = [
+                i + 1,
+                formatted_date,
+                item.get("time", ""),
+                item.get("code", ""),
+                item.get("company", ""),
+                item.get("title", ""),
+                item.get("pdf_url", ""),
+            ]
+            for col_idx, val in enumerate(values, 1):
+                cell = ws.cell(row=row, column=col_idx, value=val)
+                cell.font = FONT_NORMAL
+                cell.border = THIN_BORDER
+
+            # PDF URL をハイパーリンクにする
+            pdf_url = item.get("pdf_url", "")
+            if pdf_url:
+                pdf_cell = ws.cell(row=row, column=7)
+                pdf_cell.hyperlink = pdf_url
+                pdf_cell.font = FONT_LINK
+
+        # フィルター設定
+        if unique_items:
+            last_col = get_column_letter(len(headers))
+            ws.auto_filter.ref = f"A1:{last_col}{len(unique_items) + 1}"
+
+        logger.info("全件一覧シート: %d 件 (重複排除後)", len(unique_items))
 
 
 # ---------------------------------------------------------------------------
@@ -550,6 +741,11 @@ def main():
     args = parser.parse_args()
 
     now = datetime.now()
+
+    # ファイルログを設定 (スクリプトと同じ場所に出力)
+    log_path = Path(__file__).parent / "run_log.txt"
+    setup_file_logging(log_path)
+
     logger.info("TDnet 適時開示 自動分析システム 開始: %s", now.strftime("%Y/%m/%d %H:%M:%S"))
 
     # 対象日の決定
@@ -570,11 +766,23 @@ def main():
     fetcher = TDnetFetcher()
     raw_items = collect_disclosures(fetcher, target_dates)
 
+    # 重複排除して全件数を確認
+    seen_all = set()
+    unique_raw = []
+    for item in raw_items:
+        key = (item.get("code", ""), item.get("title", ""), item.get("date", ""))
+        if key not in seen_all:
+            seen_all.add(key)
+            unique_raw.append(item)
+
+    logger.info("=" * 60)
+    logger.info("取得合計: %d 件 (重複排除後: %d 件)", len(raw_items), len(unique_raw))
+
     # フィルタリング・分析
     analyzer = DisclosureAnalyzer()
     filtered = analyzer.filter_disclosures(raw_items)
 
-    logger.info("フィルタリング結果: %d 件", len(filtered))
+    logger.info("フィルタリング結果: %d 件 / %d 件中", len(filtered), len(unique_raw))
     for item in filtered:
         logger.info(
             "  [%s] %s %s - %s",
@@ -584,20 +792,30 @@ def main():
             item.get("title", ""),
         )
 
+    # コンソールにもサマリを表示 (bat ファイルで見やすいように)
+    print()
+    print("=" * 50)
+    print(f"  TDnet取得結果サマリ")
+    print(f"  対象日: {', '.join(target_dates)}")
+    print(f"  取得件数: {len(unique_raw)} 件")
+    print(f"  フィルタ後: {len(filtered)} 件")
+    if not unique_raw:
+        print()
+        print("  ※ 取得件数が0件です！")
+        print("    TDnetのHTML構造が変更された可能性があります。")
+        print("    run_log.txt を確認してください。")
+    print("=" * 50)
+    print()
+
     if args.dry_run:
         logger.info("ドライラン完了。Excel は生成しません。")
         return
 
-    # Excel レポート生成
-    if filtered:
-        reporter = ExcelReporter(output_dir)
-        filepath = reporter.generate(filtered, now)
-        logger.info("レポート生成完了: %s", filepath)
-    else:
-        logger.info("フィルタ対象の開示はありませんでした。空レポートを生成します。")
-        reporter = ExcelReporter(output_dir)
-        filepath = reporter.generate([], now)
-        logger.info("空レポート生成完了: %s", filepath)
+    # Excel レポート生成 (全件一覧シート付き)
+    reporter = ExcelReporter(output_dir)
+    filepath = reporter.generate(filtered, now, all_items=raw_items)
+    logger.info("レポート生成完了: %s", filepath)
+    print(f"  Excelファイル: {filepath}")
 
     logger.info("TDnet 適時開示 自動分析システム 完了")
 
