@@ -1,0 +1,66 @@
+name: Daily TDnet Stock Data Extraction
+
+on:
+  schedule:
+    # 毎日 JST 18:00 (UTC 09:00) に実行
+    # TDnet の開示は主に 15:00-16:00 に集中するため、18:00 に取得
+    - cron: '0 9 * * 1-5'  # 月〜金のみ
+  workflow_dispatch:  # 手動実行も可能
+    inputs:
+      target_date:
+        description: '対象日 (YYYY-MM-DD)'
+        required: false
+        type: string
+      min_score:
+        description: '最低スコア (1-5)'
+        required: false
+        default: '3'
+        type: string
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Set target date
+        id: date
+        run: |
+          if [ -n "${{ github.event.inputs.target_date }}" ]; then
+            echo "TARGET_DATE=${{ github.event.inputs.target_date }}" >> $GITHUB_ENV
+          else
+            echo "TARGET_DATE=$(TZ=Asia/Tokyo date +%Y-%m-%d)" >> $GITHUB_ENV
+          fi
+          echo "MIN_SCORE=${{ github.event.inputs.min_score || '3' }}" >> $GITHUB_ENV
+
+      - name: Run TDnet extraction
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python src/main.py \
+            --date "$TARGET_DATE" \
+            --min-score "$MIN_SCORE"
+
+      - name: Commit and push results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "data: TDnet extraction for $TARGET_DATE"
+            git push
+          fi
