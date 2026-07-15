@@ -1,0 +1,66 @@
+name: Temporary JPX earnings calendar export
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch and filter earnings calendar
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          import urllib.request
+          from datetime import date
+
+          source_url = "https://raw.githubusercontent.com/p-kiba/MarketTimeZen-Earnings-Calendar/main/earnings_data_jp.json"
+          with urllib.request.urlopen(source_url, timeout=60) as response:
+              source = json.load(response)
+
+          start = date.fromisoformat("2026-07-15")
+          end = date.fromisoformat("2026-08-16")
+          period_rows = [
+              row for row in source
+              if start <= date.fromisoformat(row["date"]) <= end
+          ]
+          company_rows = [
+              row for row in period_rows
+              if row.get("market") in {"プライム", "スタンダード", "グロース"}
+          ]
+
+          with open("tse_earnings_all_period_20260715_20260816.json", "w", encoding="utf-8") as f:
+              json.dump(period_rows, f, ensure_ascii=False, indent=2)
+
+          fields = [
+              "date", "symbol", "name_ja", "name_en", "market", "industry",
+              "fiscal_year_end", "fiscal_period"
+          ]
+          with open("tse_earnings_companies_20260715_20260816.csv", "w", encoding="utf-8-sig", newline="") as f:
+              writer = csv.DictWriter(f, fieldnames=fields)
+              writer.writeheader()
+              writer.writerows([{key: row.get(key, "") for key in fields} for row in company_rows])
+
+          print(json.dumps({
+              "source_rows": len(source),
+              "period_rows": len(period_rows),
+              "company_rows": len(company_rows),
+          }, ensure_ascii=False))
+          PY
+
+      - name: Upload filtered data
+        uses: actions/upload-artifact@v4
+        with:
+          name: tse-earnings-calendar-20260715-20260816
+          path: |
+            tse_earnings_all_period_20260715_20260816.json
+            tse_earnings_companies_20260715_20260816.csv
+          retention-days: 1
